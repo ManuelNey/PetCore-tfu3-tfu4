@@ -5,7 +5,7 @@
 | Qué | Cómo |
 |---|---|
 | Escenarios completos (21 verificaciones) | `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\demo-exportacion-eventos.ps1` |
-| Demo corta (4 escenarios, unos 2 minutos) | el mismo script con `-Demo` |
+| Demo corta (4 escenarios, alrededor de 1 minuto y medio) | el mismo script con `-Demo` |
 | Comparación anterior / nueva | `scripts\medir-interrupcion.ps1` (ver más abajo) |
 
 Primero levantá la aplicación con `scripts\andis-up.ps1`.
@@ -41,6 +41,64 @@ Usamos Docker Desktop en Windows, la misma máquina y los mismos datos. Había 2
 | Caída abrupta (`docker kill`) | Nueva | 5 | **5** | 0 | 39.7 s |
 | Apagado ordenado (`docker stop`) | Anterior | 5 | 5 | 0 | 9.4 s |
 | Apagado ordenado (`docker stop`) | Nueva | 5 | 5 | 0 | 39.6 s |
+
+## Cómo repetir la comparación
+
+Se mide una versión por vez, así que hay que cambiar de una a otra. El contenedor de la base de datos y los puertos (8000, 5432) son los mismos en las dos, por eso no pueden estar levantadas a la vez.
+
+**1. Medir la versión nueva.** Con la aplicación levantada (`andis-up.ps1`), desde la carpeta del proyecto:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\medir-interrupcion.ps1 -Arquitectura nueva
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\medir-interrupcion.ps1 -Arquitectura nueva -Ordenada
+```
+
+La primera corre el corte de golpe y la segunda el apagado normal. Anotá los resultados.
+
+**2. Preparar la versión anterior** (el commit `393742c`, la del final de la TFU4). Esto solo lee el commit: no cambia tu repositorio.
+
+```powershell
+$anterior = "$env:TEMP\petcore-anterior"
+git archive --format=zip -o "$env:TEMP\anterior.zip" 393742c
+Expand-Archive "$env:TEMP\anterior.zip" -DestinationPath $anterior
+Copy-Item db\password.txt, db\jwt-secret.txt "$anterior\db\"
+```
+
+**3. Bajar la versión nueva.** No borra tus datos:
+
+```powershell
+docker compose down
+```
+
+**4. Levantar la versión anterior:**
+
+```powershell
+cd $anterior
+docker compose up --build -d --scale server=2 db redis server
+docker compose up --build -d --no-deps --force-recreate balanceador
+docker compose ps
+```
+
+Esperá unos 30 segundos hasta que los servicios figuren como sanos.
+
+**5. Medir la versión anterior.** Volvé a la carpeta del proyecto nuevo y corré el mismo script, indicando dónde está la anterior:
+
+```powershell
+cd C:\ruta\al\proyecto
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\medir-interrupcion.ps1 -Arquitectura anterior -Directorio $anterior
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\medir-interrupcion.ps1 -Arquitectura anterior -Directorio $anterior -Ordenada
+```
+
+**6. Volver a la versión nueva.** Esto borra los datos de la versión anterior, que son solo de prueba:
+
+```powershell
+cd $anterior
+docker compose down -v
+cd C:\ruta\al\proyecto
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\andis-up.ps1
+```
+
+Con las cuatro corridas (anterior y nueva, cada una con corte de golpe y con apagado normal) se arma la tabla de arriba.
 
 ## Qué vimos
 

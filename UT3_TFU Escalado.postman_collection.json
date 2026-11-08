@@ -13,7 +13,7 @@
         "header": [],
         "body": {
           "mode": "raw",
-          "raw": "{\r\n  \"correo\": \"ana.cliente@petcore.com\",\r\n  \"contrasena\": \"Password123!\"\r\n}",
+          "raw": "{\r\n  \"correo\": \"ana.cliente@petcore.com\",\r\n  \"contrasena\": \"contraSegura123\"\r\n}",
           "options": {
             "raw": {
               "language": "json"

@@ -23,7 +23,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"correo\": \"ana.cliente@petcore.com\",\n  \"contrasena\": \"Password123!\"\n}",
+          "raw": "{\n  \"correo\": \"ana.cliente@petcore.com\",\n  \"contrasena\": \"contraSegura123\"\n}",
           "options": { "raw": { "language": "json" } }
         },
         "url": "{{base_url}}/auth/login",
@@ -133,7 +133,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"correo\": \"bruno.vet@petcore.com\",\n  \"contrasena\": \"Password123!\"\n}",
+          "raw": "{\n  \"correo\": \"bruno.vet@petcore.com\",\n  \"contrasena\": \"contraSegura123\"\n}",
           "options": { "raw": { "language": "json" } }
         },
         "url": "{{base_url}}/auth/login",

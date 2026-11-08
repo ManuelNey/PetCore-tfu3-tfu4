@@ -1,15 +1,15 @@
-# Compara las exportaciones al frenar el proceso que arma los PDF.
+# Mide que pasa con los PDF al frenar la API o el worker. Se corre una version por vez.
 #
-# Escenario (igual para las dos arquitecturas):
-#   1. Se piden N exportaciones y la API las acepta.
-#   2. Se frena por unos segundos el proceso que arma los PDF:
-#        anterior -> las replicas de la API (generaban el PDF dentro del proceso)
+# La prueba es la misma en las dos versiones:
+#   1. Pedimos las exportaciones y contamos cuantas acepta la API.
+#   2. Frenamos el proceso que arma los PDF:
+#        anterior -> las replicas de la API, que armaban los PDF
 #        nueva    -> el worker
-#      Por defecto la caida es abrupta (docker kill, como un crash o falta de memoria).
-#      Con -Ordenada es un apagado normal (docker stop), que deja terminar lo que esta en curso.
-#   3. Se espera hasta EsperaMax segundos y se cuentan los resultados.
+#      Sin -Ordenada corta de golpe con docker kill.
+#      Con -Ordenada usa docker stop y deja terminar el trabajo en curso.
+#   3. Al levantarlo, esperamos hasta EsperaMax segundos y contamos como quedaron las tareas.
 #
-# Uso (desde la carpeta del proyecto que se quiere medir):
+# Correr desde la version que quieras medir, o indicar su carpeta con -Directorio:
 #   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\medir-interrupcion.ps1 -Arquitectura nueva
 #   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\medir-interrupcion.ps1 -Arquitectura anterior -Directorio C:\ruta\a\la\version\anterior
 
@@ -47,7 +47,7 @@ function Esperar-Api {
     } while ((Get-Date) -lt $limite)
 }
 
-$cuerpoLogin = @{ correo = "bruno.vet@petcore.com"; contrasena = "Password123!" } | ConvertTo-Json
+$cuerpoLogin = @{ correo = "bruno.vet@petcore.com"; contrasena = "contraSegura123" } | ConvertTo-Json
 $token = (Invoke-RestMethod -Uri "$Api/auth/login" -Method Post -ContentType "application/json" -Body $cuerpoLogin).access_token
 
 $forma = if ($Ordenada) { "apagado ordenado" } else { "caida abrupta" }
@@ -63,7 +63,7 @@ for ($i = 1; $i -le $Solicitudes; $i++) {
 }
 Write-Host "Aceptadas por la API: $aceptadas de $Solicitudes"
 
-# 2. Interrumpir el componente que genera los PDF
+# 2. Frenar el proceso que arma los PDF
 $accion = if ($Ordenada) { "stop" } else { "kill" }
 
 if ($Arquitectura -eq "anterior") {

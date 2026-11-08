@@ -46,7 +46,7 @@
         "description": "Inicia sesión como administrador y guarda el token en `token_admin`.",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"correo\": \"carla.admin@petcore.com\",\n  \"contrasena\": \"Password123!\"\n}",
+          "raw": "{\n  \"correo\": \"carla.admin@petcore.com\",\n  \"contrasena\": \"contraSegura123\"\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -114,7 +114,7 @@
         "description": "Crea un cliente con correo aleatorio. Así cada corrida arranca con el contador de intentos en cero y la demo se puede repetir sin tocar la base.",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"nombre\": \"Demo\",\n  \"apellido\": \"Config\",\n  \"documento\": \"{{doc_demo}}\",\n  \"correo\": \"{{correo_demo}}\",\n  \"telefono\": \"099000000\",\n  \"contrasena\": \"Password123!\",\n  \"confirmar_contrasena\": \"Password123!\"\n}",
+          "raw": "{\n  \"nombre\": \"Demo\",\n  \"apellido\": \"Config\",\n  \"documento\": \"{{doc_demo}}\",\n  \"correo\": \"{{correo_demo}}\",\n  \"telefono\": \"099000000\",\n  \"contrasena\": \"contraSegura123\",\n  \"confirmar_contrasena\": \"contraSegura123\"\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -329,7 +329,7 @@
         "description": "Prueba del cambio en caliente: con el límite original (5) este login habría entrado con 200. Ahora la cuenta está bloqueada porque la API usó el valor nuevo.",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"correo\": \"{{correo_demo}}\",\n  \"contrasena\": \"Password123!\"\n}",
+          "raw": "{\n  \"correo\": \"{{correo_demo}}\",\n  \"contrasena\": \"contraSegura123\"\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -451,7 +451,7 @@
         "description": "Inicia sesión como cliente para probar que no puede tocar la configuración.",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"correo\": \"ana.cliente@petcore.com\",\n  \"contrasena\": \"Password123!\"\n}",
+          "raw": "{\n  \"correo\": \"ana.cliente@petcore.com\",\n  \"contrasena\": \"contraSegura123\"\n}",
           "options": {
             "raw": {
               "language": "json"

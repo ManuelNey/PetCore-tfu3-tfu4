@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $baseUrl = "http://localhost:8000"
-$contrasena = "Password123!"
+$contrasena = "contraSegura123"
 
 function Iniciar-Sesion {
     param(

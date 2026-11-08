@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 Write-Host "Construyendo y levantando PostgreSQL, Redis, RabbitMQ, dos replicas de la API y el worker..."
 
-# RabbitMQ y worker también arrancan: sin worker los PDF quedan PENDIENTE.
+# Levantamos tambien RabbitMQ, SOAP y el worker para poder generar los PDF.
 docker compose up --build -d --scale server=2 db redis rabbitmq historial-soap server worker
 
 if ($LASTEXITCODE -ne 0) {

@@ -21,7 +21,7 @@ try {
 
     $datosLogin = @{
         correo = "ana.cliente@petcore.com"
-        contrasena = "Password123!"
+        contrasena = "contraSegura123"
     } | ConvertTo-Json
 
     $login = Invoke-RestMethod `

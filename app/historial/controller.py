@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -14,9 +14,9 @@ from app.historial.dto import (
 )
 from app.historial.exportacion_repository import ExportacionRepository
 from app.historial.exportacion_service import (
+    ExportacionNoEncolada,
     ExportacionService,
     TareaNoLista,
-    generar_en_segundo_plano,
 )
 from app.historial.repository import HistorialRepository
 from app.historial.service import HistorialService
@@ -78,20 +78,21 @@ def ver_historial(
 )
 def iniciar_exportacion(
     id_mascota: int,
-    segundo_plano: BackgroundTasks,
     usuario: dict[str, Any] = Depends(requerir_rol("VETERINARIO")),
     session: Session = Depends(get_session),
 ):
-    """Crea la tarea y responde enseguida (202). El PDF se prepara después."""
+    """Crea la tarea, manda la solicitud al worker y responde enseguida (202). El PDF se prepara después."""
     service = crear_exportacion_service(session)
 
     try:
         id_tarea = service.iniciar(id_mascota, usuario["id_usuario"])
     except LookupError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
-
-    # Se ejecuta después de responder
-    segundo_plano.add_task(generar_en_segundo_plano, id_tarea, id_mascota, usuario["id_usuario"])
+    except ExportacionNoEncolada as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="No se pudo enviar la solicitud de exportación. Intente de nuevo en unos instantes.",
+        ) from error
 
     return {"id_tarea": id_tarea, "estado": "PENDIENTE"}
 

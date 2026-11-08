@@ -46,6 +46,13 @@ services:
       # demostrar el vencimiento, definir VALET_KEY_SEGUNDOS=10 antes de levantar.
       VALET_KEY_SEGUNDOS: ${VALET_KEY_SEGUNDOS:-600}
 
+      # RabbitMQ (arquitectura basada en eventos). La API publica
+      # ExportacionSolicitada y consume ExportacionGenerada/ExportacionFallida.
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-petcore}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-petcore}
+
     # Carpeta donde se guardan los PDF. Se comparte entre las dos copias de la API
     # para que cualquiera pueda entregar un PDF que generó la otra.
     volumes:
@@ -57,6 +64,8 @@ services:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     # Deja a FastAPI leer la contraseña
     secrets:
@@ -73,6 +82,52 @@ services:
       retries: 3
       start_period: 10s
 
+  # Worker de exportaciones: proceso aparte que recibe ExportacionSolicitada por
+  # RabbitMQ, genera el PDF y publica el resultado. Usa la misma imagen que la API.
+  worker:
+    build:
+      context: .
+    command: ["uv", "run", "python", "-m", "app.worker.main"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_SERVER: db
+      POSTGRES_USER: petcore_app
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/db-password
+
+      # Settings exige la clave JWT al arrancar, aunque el worker no valide logins.
+      # PROVISORIO: cuando el servicio SOAP exista, el worker también la va a usar para
+      # firmar el token con el que llama al SOAP (lo define quien hace el servicio SOAP).
+      JWT_SECRET_KEY_FILE: /run/secrets/jwt-secret
+
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-petcore}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-petcore}
+
+      EXPORTACIONES_DIR: /app/exportaciones
+      EXPORTACION_RETARDO_SEGUNDOS: ${EXPORTACION_RETARDO_SEGUNDOS:-5}
+
+      # PROVISORIO: dirección del servicio SOAP del historial (contenedor aparte).
+      # Hoy el worker consulta la base directo y no usa esta variable. Quien hace el
+      # servicio SOAP define el valor y lo descomenta, por ejemplo:
+      # SOAP_HISTORIAL_URL: http://historial-soap:8001/?wsdl
+
+    volumes:
+      - exportaciones:/app/exportaciones
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      # PROVISORIO: cuando exista el contenedor del servicio SOAP, agregar acá su
+      # dependencia (con el nombre que le ponga quien lo hace), por ejemplo:
+      # historial-soap:
+      #   condition: service_healthy
+    secrets:
+      - db-password
+      - jwt-secret
+
   # Balancea las solicitudes entre las réplicas de FastAPI
   balanceador:
     build:
@@ -84,6 +139,29 @@ services:
       - ./nginx/andis.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - server
+
+  # RabbitMQ: transporta los eventos de la exportación del historial.
+  # Las colas son durables y los mensajes persistentes (ver app/mensajeria),
+  # y el volumen conserva los mensajes pendientes si el contenedor se reinicia.
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-petcore}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-petcore}
+    ports:
+      # 15672: consola web de administración (http://localhost:15672), útil para la demo.
+      - "15672:15672"
+    expose:
+      - "5672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
 
   # Redis Cache
   redis:
@@ -139,6 +217,7 @@ services:
 volumes:
   postgres_data:
   exportaciones:
+  rabbitmq_data:
 
 # Acá se declara el archivo de contraseña como un secreto de Docker Compose
 secrets:

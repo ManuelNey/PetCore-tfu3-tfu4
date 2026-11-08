@@ -31,6 +31,39 @@ class Settings(BaseSettings):
         ge=1,
     )
 
+    # RabbitMQ (eventos de la exportación del historial)
+    RABBITMQ_HOST: str = "localhost"
+    RABBITMQ_PORT: int = 5672
+    RABBITMQ_USER: str = "petcore"
+    RABBITMQ_PASSWORD: str = "petcore"
+
+    # Cuántas veces se intenta conectar/publicar antes de rendirse (Retry).
+    RABBITMQ_INTENTOS: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+    )
+
+    # Worker de exportaciones: cuántas veces pide el historial (si falla por algo
+    # pasajero) antes de dar la tarea por fallida, y cuánto espera entre intentos
+    # (se duplica en cada intento: 1s, 2s, ...).
+    WORKER_INTENTOS_HISTORIAL: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+    )
+    WORKER_ESPERA_BASE_SEGUNDOS: float = Field(
+        default=1.0,
+        ge=0,
+    )
+
+    # PROVISORIO: dirección del servicio SOAP del historial (contenedor aparte).
+    # Hoy no se usa: cliente_historial.obtener_historial() todavía consulta la base
+    # directo. Quien hace el servicio SOAP define el valor real (por ejemplo
+    # "http://historial-soap:8001/?wsdl"), lo usa en cliente_historial.py y lo agrega
+    # al servicio "worker" de compose.yaml.
+    SOAP_HISTORIAL_URL: str | None = None
+
     # JWT
     JWT_SECRET_KEY: str = Field(
         min_length=32,

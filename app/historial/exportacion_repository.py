@@ -44,8 +44,12 @@ class ExportacionRepository:
         self.session.commit()
 
     def marcar_error(self, id_tarea: UUID, detalle: str) -> None:
+        # Una tarea LISTO no se pisa con un error: si el PDF existe, es lo que vale.
         consulta = text(
-            "UPDATE tarea_exportacion SET estado = 'ERROR', detalle_error = :detalle WHERE id_tarea = :id_tarea"
+            """
+            UPDATE tarea_exportacion SET estado = 'ERROR', detalle_error = :detalle
+            WHERE id_tarea = :id_tarea AND estado <> 'LISTO'
+            """
         )
         self.session.execute(consulta, {"id_tarea": id_tarea, "detalle": detalle})
         self.session.commit()

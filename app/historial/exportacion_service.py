@@ -1,21 +1,22 @@
 import logging
-import time
 from pathlib import Path
 from uuid import UUID
 
 from app.config import settings
-from app.database import abrir_sesion_con_reintentos
 from app.historial.exportacion_repository import ExportacionRepository
-from app.historial.pdf import generar_pdf_historial
 from app.historial.repository import HistorialRepository
-from app.historial.service import HistorialService
 from app.historial.valet_key import generar_valet_key, validar_valet_key
+from app.mensajeria import eventos, rabbitmq
 
 logger = logging.getLogger(__name__)
 
 
 class TareaNoLista(Exception):
     """La tarea existe, pero el PDF todavía no está listo"""
+
+
+class ExportacionNoEncolada(Exception):
+    """No se pudo enviar la solicitud a RabbitMQ, así que nadie va a generar el PDF."""
 
 
 def ruta_archivo(nombre_archivo: str) -> Path | None:
@@ -35,14 +36,29 @@ class ExportacionService:
 
     def iniciar(self, id_mascota: int, id_veterinario: int) -> UUID:
         """
-        Revisa que la mascota exista y crea la tarea como PENDIENTE.
+        Revisa que la mascota exista, crea la tarea como PENDIENTE y manda la solicitud
+        (evento ExportacionSolicitada) a RabbitMQ. El PDF lo genera el worker.
 
-        Todavía no genera el PDF: eso se hace después de responder.
+        Si no se puede enviar la solicitud, la tarea queda en ERROR (así no queda
+        PENDIENTE para siempre) y se lanza ExportacionNoEncolada.
         """
         if not self.historial.obtener_info_mascota(id_mascota):
             raise LookupError("Mascota no encontrada.")
 
-        return self.exportaciones.crear_tarea(id_mascota, id_veterinario)
+        id_tarea = self.exportaciones.crear_tarea(id_mascota, id_veterinario)
+
+        try:
+            # Hay una persona esperando y Nginx corta a los 5 segundos: se limita el tiempo.
+            rabbitmq.publicar(
+                eventos.RK_SOLICITADA,
+                eventos.exportacion_solicitada(str(id_tarea), id_mascota, id_veterinario),
+                tiempo_maximo=3.0,
+            )
+        except rabbitmq.ErrorMensajeria as error:
+            self.exportaciones.marcar_error(id_tarea, "No se pudo enviar la solicitud de exportación.")
+            raise ExportacionNoEncolada() from error
+
+        return id_tarea
 
     def consultar(self, id_tarea: UUID, id_veterinario: int) -> dict:
         tarea = self.exportaciones.obtener_tarea(id_tarea)
@@ -76,33 +92,3 @@ class ExportacionService:
             raise LookupError("El archivo ya no está disponible.")
 
         return ruta
-
-
-def generar_en_segundo_plano(id_tarea: UUID, id_mascota: int, id_veterinario: int) -> None:
-    """
-    Genera el PDF y marca la tarea como LISTO (o ERROR si algo falla).
-
-    Se ejecuta después de responder al veterinario, por eso usa su propia
-    conexión a la base de datos.
-    """
-    session = abrir_sesion_con_reintentos()
-    exportaciones = ExportacionRepository(session)
-
-    try:
-        # Pausa solo para la demo (en un uso real es 0).
-        time.sleep(settings.EXPORTACION_RETARDO_SEGUNDOS)
-
-        historial = HistorialService(HistorialRepository(session)).obtener_historial_veterinario(
-            id_mascota, id_veterinario, None
-        )
-
-        nombre_archivo = f"{id_tarea}.pdf"
-        generar_pdf_historial(historial, Path(settings.EXPORTACIONES_DIR) / nombre_archivo)
-
-        exportaciones.marcar_listo(id_tarea, nombre_archivo)
-    except Exception:
-        logger.exception("Exportación %s falló.", id_tarea)
-        session.rollback()
-        exportaciones.marcar_error(id_tarea, "No se pudo generar el PDF.")
-    finally:
-        session.close()

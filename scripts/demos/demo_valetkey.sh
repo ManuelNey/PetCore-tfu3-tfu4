@@ -17,7 +17,7 @@ step() {
 step "1) Login como veterinario"
 VETTOKEN=$(curl -s -X POST "$BASE/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"correo":"bruno.vet@petcore.com","contrasena":"Password123!"}' \
+  -d '{"correo":"bruno.vet@petcore.com","contrasena":"contraSegura123"}' \
   | python -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))")
 echo "  token obtenido (${#VETTOKEN} caracteres)"
 

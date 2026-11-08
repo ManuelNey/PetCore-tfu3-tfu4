@@ -38,7 +38,7 @@
         "description": "Inicia sesión como cliente y guarda el token en `token_cliente`. `tipos-atencion` acepta CLIENTE o VETERINARIO.",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"correo\": \"ana.cliente@petcore.com\",\n  \"contrasena\": \"Password123!\"\n}",
+          "raw": "{\n  \"correo\": \"ana.cliente@petcore.com\",\n  \"contrasena\": \"contraSegura123\"\n}",
           "options": { "raw": { "language": "json" } }
         }
       },

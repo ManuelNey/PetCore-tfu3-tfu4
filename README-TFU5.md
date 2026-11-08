@@ -132,37 +132,56 @@ El veterinario ve todo el historial. El cliente ve el de sus mascotas, paginado.
 
 SOAP devuelve un SOAP Fault con el código original (400, 401, 403, 404, 503). La API lo pasa a HTTP. Por ejemplo, si la mascota no existe, devuelve 404.
 
-### Prueba manual con Postman
+### Prueba con Postman
 
-1. **POST** `http://localhost:8000/auth/login` → copiar el `access_token`.
-2. **GET** `http://localhost:8000/mascotas` con el token → copiar el `id_mascota` de una mascota que tenga consultas.
-3. **POST** `http://localhost:8001/soap/historial` con el mismo token en **Authorization → Bearer Token**.
+1. En Postman: **Import** y elegir `postman/Eventos_SOAP_Collection.json`.
+2. Con la aplicación levantada, ejecutar los pasos **en orden** con **Send**, o todos juntos con **Run collection**.
 
-Encabezados:
+Cada paso usa lo que guardó el anterior (los tokens, el id de la mascota, el id de la tarea), así que **hay que respetar el orden**. No hace falta copiar nada a mano: los scripts de la colección lo guardan solos.
 
-| Encabezado | Valor |
-|---|---|
-| `Content-Type` | `text/xml; charset=utf-8` |
-| `SOAPAction` | `"urn:petcore:historial/ObtenerHistorialMascota"` |
+Para saber si un paso salió bien, mirá la pestaña **Test Results** de la respuesta: tiene que verse en verde. En algunos pasos el error es justamente lo esperado (se avisa en cada uno).
 
-En **Body → raw → XML**, pegá esto y cambiá `1` por el ID de la mascota:
+**Usuarios de prueba** (la contraseña de todos es `contraSegura123`):
 
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<soap:Envelope
-    xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
-    xmlns:h="urn:petcore:historial">
-  <soap:Body>
-    <h:ObtenerHistorialMascota>
-      <h:id_mascota>1</h:id_mascota>
-      <h:limite>10</h:limite>
-      <h:offset>0</h:offset>
-    </h:ObtenerHistorialMascota>
-  </soap:Body>
-</soap:Envelope>
-```
+| Correo | Rol | Qué ve en el historial |
+|---|---|---|
+| `ana.cliente@petcore.com` | Cliente | El historial de sus mascotas, con paginación. |
+| `bruno.vet@petcore.com` | Veterinario | El historial completo, con correcciones. |
+| `carla.admin@petcore.com` | Administrador | Nada: recibe un error 403. |
 
-**WSDL:** `GET http://localhost:8001/soap/historial?wsdl` devuelve el contrato: operación, tipos de respuesta y dirección del servicio. No pide token.
+#### Paso a paso
+
+**1.1, 1.2 y 1.3 — Iniciar sesión.** Apretá **Send** en los tres (cliente, veterinario y administrador): cada uno guarda el token de un rol y los pasos siguientes los usan. Ves `200` y un `access_token`. Los tokens duran 15 minutos: si después da 401, repetí los tres.
+
+**2.1 — Ver las mascotas.** Lista las mascotas de Ana y guarda el id de Firulais. Ves `200` y una lista con Firulais y Michi.
+
+**2.2 — Registrar una consulta (opcional, una sola vez).** El veterinario carga una consulta en el turno 1 para que el historial tenga contenido. Ves `200`; si ya estaba registrada, un error, y es normal.
+
+**3.1 — Ver el WSDL.** Pide el contrato del servicio SOAP. Ves `200` y un XML que menciona `ObtenerHistorialMascota`.
+
+**3.2 — Historial como cliente (SOAP).** Llama al servicio SOAP con el token del cliente. Ves `200` y un XML con `<h:cliente>`.
+
+**3.3 — Historial como veterinario (SOAP).** Igual, con el token del veterinario. Ves `200` y un XML con `<h:veterinario>`, más completo.
+
+**3.4 — Administrador (SOAP).** Igual, con el token del administrador, que no tiene acceso. Ves HTTP `500` con un `soap:Fault` y `<status>403</status>`. **El error es lo correcto:** SOAP devuelve los errores así, con el código real dentro del XML.
+
+**3.5 — Mascota inexistente (SOAP).** Pide la mascota 99999. Ves HTTP `500` con un `soap:Fault` y `<status>404</status>`. **El error es lo correcto.**
+
+**4.1 — Historial como veterinario (REST).** Pide el historial a la API, que por dentro se lo pide al servicio SOAP. Ves `200` y el historial en JSON.
+
+**4.2 — Historial como cliente, paginado (REST).** Igual, con `?limite=2`. Ves `200` y como máximo 2 consultas.
+
+**4.3 — Administrador (REST).** Ves `403`. **El error es lo correcto.**
+
+**4.4 — Mascota inexistente (REST).** Ves `404`. **El error es lo correcto.**
+
+**5.1 — Pedir la exportación.** La API guarda la tarea, avisa al worker por RabbitMQ y responde sin esperar al PDF. Ves `202` y `"estado": "PENDIENTE"`.
+
+**5.2 — Consultar el estado.** En **Run collection** se repite sola; con **Send**, apretalo hasta ver `LISTO`. El worker arma el PDF en unos segundos (hace una pausa a propósito). Ves `PENDIENTE` y después `LISTO` con un `enlace_descarga`.
+
+**5.3 — Descargar el PDF.** Usa el enlace anterior, sin token. Ves `200` y un PDF (pestaña **Preview**).
+
+**WSDL:** `GET http://localhost:8001/soap/historial?wsdl` devuelve el contrato: operación, tipos de respuesta y dirección del servicio. No requiere token.
 
 **Salud:** `GET http://localhost:8001/health` comprueba el acceso a PostgreSQL y responde `{"status": "ok"}`.
 
@@ -184,11 +203,26 @@ En **Body → raw → XML**, pegá esto y cambiá `1` por el ID de la mascota:
 
 ### Demo corta
 
+Dura alrededor de un minuto y medio.
+
+1. Levantá la aplicación, si no está arriba: `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\andis-up.ps1`.
+2. Abrí PowerShell en la carpeta del proyecto y corré:
+
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\demo-exportacion-eventos.ps1 -Demo
 ```
 
-Prueba 4 casos: exportación normal y caídas del worker, RabbitMQ y SOAP. Cada verificación muestra `[OK]` o `[FALLO]`.
+**Qué hace, en orden:**
+- **Exportación normal:** pide una exportación, espera a que termine y descarga el PDF sin iniciar sesión.
+- **Worker caído:** detiene el worker, pide 3 exportaciones (quedan `PENDIENTE`), lo vuelve a levantar y se completan las 3.
+- **RabbitMQ caído:** lo detiene y pide una exportación (la API igual la acepta). Al volver RabbitMQ, la tarea se completa.
+- **SOAP caído:** lo detiene y la tarea termina en `ERROR` después de los reintentos. Al volver el SOAP, una exportación nueva funciona.
+
+**Qué tenés que ver:** cada verificación muestra `[OK]` o `[FALLO]`. Al final tiene que decir `Verificaciones: 10. Fallos: 0.` Los números de los casos saltan (1, 3, 6, 8) porque el modo completo tiene otros.
+
+**Importante:**
+- El script apaga y vuelve a levantar el worker, RabbitMQ y el servicio SOAP a propósito. Al terminar deja todo funcionando.
+- Si alguna verificación da `[FALLO]`, revisá con `docker compose ps` que todos los servicios estén levantados y volvé a correrlo.
 
 ### Pruebas completas
 
@@ -200,7 +234,19 @@ Corre los 9 casos (21 verificaciones). Agrega la consulta REST por SOAP con todo
 
 ### Comparación con la versión anterior
 
-`scripts\medir-interrupcion.ps1` pide 5 exportaciones y frena el proceso que arma los PDF. Los resultados y los pasos para repetirlo están en [RESULTADOS_PRUEBAS_EVENTOS.md](RESULTADOS_PRUEBAS_EVENTOS.md).
+`scripts\medir-interrupcion.ps1` compara la versión anterior con la nueva. Pide 5 exportaciones, corta 10 segundos el proceso que arma los PDF (en la anterior, la API; en la nueva, el worker) y muestra cuántas se aceptaron, terminaron, quedaron pendientes o dieron error, y cuánto tardó.
+
+Se corre **una versión por vez**, desde la carpeta de esa versión. Para la nueva, con la aplicación levantada:
+
+```powershell
+# Corte de golpe (simula una caída)
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\medir-interrupcion.ps1 -Arquitectura nueva
+
+# Apagado normal
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\medir-interrupcion.ps1 -Arquitectura nueva -Ordenada
+```
+
+Para la versión anterior hay que levantarla aparte. Los pasos están en [RESULTADOS_PRUEBAS_EVENTOS.md](RESULTADOS_PRUEBAS_EVENTOS.md#cómo-repetir-la-comparación), junto con los resultados.
 
 En esa prueba, al cortar el proceso de golpe, la versión anterior dejó las 5 tareas pendientes. La nueva completó las 5 al volver el worker. Tardó más porque procesa de a un pedido.
 
@@ -250,4 +296,5 @@ Estos son los archivos que agregamos y para qué sirve cada uno.
 | `SOAP/` | Servicio SOAP: `main.py`, `distribuido/` (XML y WSDL) y `historial/service.py`. |
 | `scripts/demo-exportacion-eventos.ps1` | Demo y pruebas de los escenarios. |
 | `scripts/medir-interrupcion.ps1` | Medición para comparar con la versión anterior. |
+| `postman/Eventos_SOAP_Collection.json` | Colección de Postman para probar el SOAP, la API REST y la exportación a PDF. |
 | `RESULTADOS_PRUEBAS_EVENTOS.md` | Resultados de las pruebas y de la comparación. |

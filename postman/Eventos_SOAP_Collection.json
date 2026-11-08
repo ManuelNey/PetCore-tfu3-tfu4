@@ -1,0 +1,846 @@
+{
+  "info": {
+    "name": "Eventos_SOAP_Collection",
+    "description": "Prueba de la TFU5: servicio SOAP del historial, consulta REST que lo usa por dentro y exportación del historial a PDF con eventos (RabbitMQ + worker).\n\nANTES DE EMPEZAR: levantar la aplicación con scripts\\andis-up.ps1.\nCÓMO USARLA: ejecutar los pasos EN ORDEN, de a uno con Send o todos juntos con Collection Runner. Los scripts guardan solos los tokens y los identificadores: no hay que copiar nada.\nCada paso explica en su descripción qué hace y qué debe dar.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "soap_url",
+      "value": "http://localhost:8001"
+    },
+    {
+      "key": "id_mascota",
+      "value": "1"
+    },
+    {
+      "key": "intentos",
+      "value": "0"
+    }
+  ],
+  "item": [
+    {
+      "name": "1 - Iniciar sesión",
+      "item": [
+        {
+          "name": "1.1 - Iniciar sesión como cliente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Inicio de sesión correcto (200)\", () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test(\"Devuelve un access_token\", () => pm.expect(j.access_token).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"token_cliente\", j.access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "QUÉ HACER: apretar Send.\nQUÉ HACE: inicia sesión con ana.cliente@petcore.com y guarda el token en la variable token_cliente, para los pasos siguientes.\nQUÉ DEBE DAR: 200.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"ana.cliente@petcore.com\",\n  \"contrasena\": \"contraSegura123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.2 - Iniciar sesión como veterinario",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Inicio de sesión correcto (200)\", () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test(\"Devuelve un access_token\", () => pm.expect(j.access_token).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"token_vet\", j.access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "QUÉ HACER: apretar Send.\nQUÉ HACE: inicia sesión con bruno.vet@petcore.com y guarda el token en la variable token_vet, para los pasos siguientes.\nQUÉ DEBE DAR: 200.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"bruno.vet@petcore.com\",\n  \"contrasena\": \"contraSegura123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.3 - Iniciar sesión como administrador",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Inicio de sesión correcto (200)\", () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test(\"Devuelve un access_token\", () => pm.expect(j.access_token).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"token_admin\", j.access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "QUÉ HACER: apretar Send.\nQUÉ HACE: inicia sesión con carla.admin@petcore.com y guarda el token en la variable token_admin, para los pasos siguientes.\nQUÉ DEBE DAR: 200.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"carla.admin@petcore.com\",\n  \"contrasena\": \"contraSegura123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2 - Preparar datos",
+      "item": [
+        {
+          "name": "2.1 - Ver las mascotas del cliente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test(\"Hay al menos una mascota\", () => pm.expect(j.length).to.be.above(0));",
+                  "pm.collectionVariables.set(\"id_mascota\", String(j[0].id_mascota));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/mascotas",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "mascotas"
+              ]
+            },
+            "description": "QUÉ HACER: apretar Send.\nQUÉ HACE: lista las mascotas de Ana y guarda el id de la primera (Firulais) en la variable id_mascota. Solo el cliente puede usar este endpoint: el veterinario y el administrador reciben 403.\nQUÉ DEBE DAR: 200 y una lista con Firulais.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_cliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2.2 - Registrar una consulta de prueba (solo la primera vez)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Se registró la consulta (200) o ya existía una\", () => pm.expect([200, 201, 400, 404, 409, 422]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/turnos/1/consulta",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "turnos",
+                "1",
+                "consulta"
+              ]
+            },
+            "description": "QUÉ HACER: apretar Send. Es opcional.\nQUÉ HACE: el veterinario registra una consulta en el turno 1 (el turno de prueba de Firulais), para que el historial tenga contenido. Un turno admite una sola consulta.\nQUÉ DEBE DAR: 200 la primera vez. Si ya se registró antes, responde un error: es normal y los pasos siguientes funcionan igual.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_vet}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"Chequeo\",\n  \"diagnostico\": \"Sano\",\n  \"observaciones\": null,\n  \"tratamiento\": null,\n  \"recomendaciones\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3 - Historial por SOAP",
+      "item": [
+        {
+          "name": "3.1 - Ver el contrato WSDL",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"El WSDL describe ObtenerHistorialMascota\", () => pm.expect(pm.response.text()).to.include(\"ObtenerHistorialMascota\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{soap_url}}/soap/historial?wsdl",
+              "host": [
+                "{{soap_url}}"
+              ],
+              "path": [
+                "soap",
+                "historial"
+              ],
+              "query": [
+                {
+                  "key": "wsdl",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "QUÉ HACER: apretar Send.\nQUÉ HACE: pide el contrato WSDL del servicio SOAP. No necesita token.\nQUÉ DEBE DAR: 200 y un XML que menciona la operación ObtenerHistorialMascota."
+          },
+          "response": []
+        },
+        {
+          "name": "3.2 - Historial como cliente (SOAP)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Devuelve la vista de cliente\", () => pm.expect(pm.response.text()).to.include(\"<h:cliente>\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "text/xml; charset=utf-8"
+              },
+              {
+                "key": "SOAPAction",
+                "value": "\"urn:petcore:historial/ObtenerHistorialMascota\""
+              }
+            ],
+            "url": {
+              "raw": "{{soap_url}}/soap/historial",
+              "host": [
+                "{{soap_url}}"
+              ],
+              "path": [
+                "soap",
+                "historial"
+              ]
+            },
+            "description": "QUÉ HACER: apretar Send. El mensaje XML ya está cargado, no hay que escribir nada.\nQUÉ HACE: llama a la operación SOAP ObtenerHistorialMascota con el token del cliente.\nQUÉ DEBE DAR: 200 y un XML con la vista de cliente (elemento cliente).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_cliente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:h=\"urn:petcore:historial\">\n  <soap:Body>\n    <h:ObtenerHistorialMascota>\n      <h:id_mascota>{{id_mascota}}</h:id_mascota>\n      <h:limite>10</h:limite>\n      <h:offset>0</h:offset>\n    </h:ObtenerHistorialMascota>\n  </soap:Body>\n</soap:Envelope>",
+              "options": {
+                "raw": {
+                  "language": "xml"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.3 - Historial como veterinario (SOAP)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Devuelve la vista de veterinario\", () => pm.expect(pm.response.text()).to.include(\"<h:veterinario>\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "text/xml; charset=utf-8"
+              },
+              {
+                "key": "SOAPAction",
+                "value": "\"urn:petcore:historial/ObtenerHistorialMascota\""
+              }
+            ],
+            "url": {
+              "raw": "{{soap_url}}/soap/historial",
+              "host": [
+                "{{soap_url}}"
+              ],
+              "path": [
+                "soap",
+                "historial"
+              ]
+            },
+            "description": "QUÉ HACER: apretar Send.\nQUÉ HACE: la misma llamada con el token del veterinario.\nQUÉ DEBE DAR: 200 y un XML con la vista completa del veterinario (elemento veterinario).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_vet}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:h=\"urn:petcore:historial\">\n  <soap:Body>\n    <h:ObtenerHistorialMascota>\n      <h:id_mascota>{{id_mascota}}</h:id_mascota>\n      <h:limite>10</h:limite>\n      <h:offset>0</h:offset>\n    </h:ObtenerHistorialMascota>\n  </soap:Body>\n</soap:Envelope>",
+              "options": {
+                "raw": {
+                  "language": "xml"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.4 - Administrador sin acceso (SOAP Fault)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde con un SOAP Fault (HTTP 500)\", () => pm.response.to.have.status(500));",
+                  "pm.test(\"El código original es 403\", () => pm.expect(pm.response.text()).to.include(\"<status>403</status>\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "text/xml; charset=utf-8"
+              },
+              {
+                "key": "SOAPAction",
+                "value": "\"urn:petcore:historial/ObtenerHistorialMascota\""
+              }
+            ],
+            "url": {
+              "raw": "{{soap_url}}/soap/historial",
+              "host": [
+                "{{soap_url}}"
+              ],
+              "path": [
+                "soap",
+                "historial"
+              ]
+            },
+            "description": "QUÉ HACER: apretar Send.\nQUÉ HACE: la misma llamada con el token del administrador, que no puede ver historiales clínicos.\nQUÉ DEBE DAR: HTTP 500 con un SOAP Fault. Es lo esperado: así responde SOAP 1.1 a los errores. El código original (403) viaja dentro del XML, en la etiqueta status.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:h=\"urn:petcore:historial\">\n  <soap:Body>\n    <h:ObtenerHistorialMascota>\n      <h:id_mascota>{{id_mascota}}</h:id_mascota>\n      <h:limite>10</h:limite>\n      <h:offset>0</h:offset>\n    </h:ObtenerHistorialMascota>\n  </soap:Body>\n</soap:Envelope>",
+              "options": {
+                "raw": {
+                  "language": "xml"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.5 - Mascota inexistente (SOAP Fault)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde con un SOAP Fault (HTTP 500)\", () => pm.response.to.have.status(500));",
+                  "pm.test(\"El código original es 404\", () => pm.expect(pm.response.text()).to.include(\"<status>404</status>\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "text/xml; charset=utf-8"
+              },
+              {
+                "key": "SOAPAction",
+                "value": "\"urn:petcore:historial/ObtenerHistorialMascota\""
+              }
+            ],
+            "url": {
+              "raw": "{{soap_url}}/soap/historial",
+              "host": [
+                "{{soap_url}}"
+              ],
+              "path": [
+                "soap",
+                "historial"
+              ]
+            },
+            "description": "QUÉ HACER: apretar Send.\nQUÉ HACE: pide el historial de la mascota 99999, que no existe.\nQUÉ DEBE DAR: HTTP 500 con un SOAP Fault cuyo código original es 404.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_vet}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:h=\"urn:petcore:historial\">\n  <soap:Body>\n    <h:ObtenerHistorialMascota>\n      <h:id_mascota>99999</h:id_mascota>\n      <h:limite>10</h:limite>\n      <h:offset>0</h:offset>\n    </h:ObtenerHistorialMascota>\n  </soap:Body>\n</soap:Envelope>",
+              "options": {
+                "raw": {
+                  "language": "xml"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4 - Historial por la API REST",
+      "item": [
+        {
+          "name": "4.1 - Historial como veterinario (REST)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Trae la vista de veterinario\", () => pm.expect(pm.response.json()).to.have.property(\"consistente\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/mascotas/{{id_mascota}}/historial",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "mascotas",
+                "{{id_mascota}}",
+                "historial"
+              ]
+            },
+            "description": "QUÉ HACER: apretar Send.\nQUÉ HACE: pide el historial a la API REST, que por dentro se lo pide al servicio SOAP y devuelve JSON.\nQUÉ DEBE DAR: 200 y el historial completo.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_vet}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4.2 - Historial como cliente, paginado (REST)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test(\"Trae el total\", () => pm.expect(j).to.have.property(\"total\"));",
+                  "pm.test(\"Respeta el límite de 2\", () => pm.expect(j.consultas.length).to.be.at.most(2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/mascotas/{{id_mascota}}/historial?limite=2&offset=0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "mascotas",
+                "{{id_mascota}}",
+                "historial"
+              ],
+              "query": [
+                {
+                  "key": "limite",
+                  "value": "2"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "QUÉ HACER: apretar Send.\nQUÉ HACE: pide el historial como cliente, con límite de 2 consultas.\nQUÉ DEBE DAR: 200, un campo total y como máximo 2 consultas.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_cliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4.3 - Administrador sin acceso (REST)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/mascotas/{{id_mascota}}/historial",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "mascotas",
+                "{{id_mascota}}",
+                "historial"
+              ]
+            },
+            "description": "QUÉ HACER: apretar Send.\nQUÉ HACE: el administrador intenta ver el historial.\nQUÉ DEBE DAR: 403.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4.4 - Mascota inexistente (REST)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/mascotas/99999/historial",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "mascotas",
+                "99999",
+                "historial"
+              ]
+            },
+            "description": "QUÉ HACER: apretar Send.\nQUÉ HACE: el veterinario pide el historial de la mascota 99999.\nQUÉ DEBE DAR: 404.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_vet}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5 - Exportación a PDF (eventos)",
+      "item": [
+        {
+          "name": "5.1 - Pedir la exportación",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"La API acepta la solicitud (202)\", () => pm.response.to.have.status(202));",
+                  "const j = pm.response.json();",
+                  "pm.test(\"Estado PENDIENTE\", () => pm.expect(j.estado).to.eql(\"PENDIENTE\"));",
+                  "pm.collectionVariables.set(\"id_tarea\", j.id_tarea);",
+                  "pm.collectionVariables.set(\"intentos\", \"0\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/historial/{{id_mascota}}/exportar",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "historial",
+                "{{id_mascota}}",
+                "exportar"
+              ]
+            },
+            "description": "QUÉ HACER: apretar Send.\nQUÉ HACE: el veterinario pide el PDF del historial. La API guarda la tarea, publica el evento en RabbitMQ y responde enseguida; el PDF lo arma el worker.\nQUÉ DEBE DAR: 202 y el id_tarea, con estado PENDIENTE.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_vet}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5.2 - Consultar el estado (se repite sola)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "const n = (parseInt(pm.collectionVariables.get(\"intentos\")) || 0) + 1;",
+                  "pm.collectionVariables.set(\"intentos\", String(n));",
+                  "console.log(\"Intento \" + n + \": \" + j.estado);",
+                  "if (j.estado === \"PENDIENTE\" && n < 30) {",
+                  "  setTimeout(() => {}, 1000);",
+                  "  postman.setNextRequest(pm.info.requestName);",
+                  "} else {",
+                  "  pm.test(\"La exportación terminó en LISTO\", () => pm.expect(j.estado).to.eql(\"LISTO\"));",
+                  "  pm.test(\"Trae el enlace de descarga\", () => pm.expect(j.enlace_descarga).to.include(\"token=\"));",
+                  "  pm.collectionVariables.set(\"enlace_descarga\", j.enlace_descarga);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/historial/exportar/{{id_tarea}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "historial",
+                "exportar",
+                "{{id_tarea}}"
+              ]
+            },
+            "description": "QUÉ HACER: apretar Send hasta ver LISTO. En el Collection Runner se repite sola (máximo 30 veces).\nQUÉ HACE: consulta el estado de la tarea. Pasa de PENDIENTE a LISTO cuando el worker termina el PDF.\nQUÉ DEBE DAR: 200 y, al final, estado LISTO con un enlace de descarga.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_vet}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5.3 - Descargar el PDF sin iniciar sesión",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Es un PDF\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"pdf\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}{{enlace_descarga}}",
+              "host": [
+                "{{base_url}}{{enlace_descarga}}"
+              ]
+            },
+            "description": "QUÉ HACER: apretar Send. No lleva token: el enlace temporal (Valet Key) alcanza.\nQUÉ HACE: descarga el PDF.\nQUÉ DEBE DAR: 200 y un archivo PDF."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

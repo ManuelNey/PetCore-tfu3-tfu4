@@ -6,7 +6,7 @@
 -- para poder probar el login y el resto de los endpoints sin tener
 -- que dar de alta todo a mano.
 --
--- La contraseña de TODOS los usuarios de prueba es: Password123!
+-- La contraseña de TODOS los usuarios de prueba es: contraSegura123
 -- (el hash de abajo es bcrypt real, generado con pwdlib/BcryptHasher).
 --
 -- Se ejecuta después de 01_schema.sql, 02_permisos.sql y
@@ -37,11 +37,11 @@ INSERT INTO usuario
     (nombre, apellido, documento, correo, telefono, contrasena_hash)
 VALUES
     ('Ana', 'Gómez', '11111111', 'ana.cliente@petcore.com', '099111111',
-        '$2b$12$eXOrhUfGPsZkmiCWsD/p/eiwBgeE//BOfC0g6j4i05u6Kx5x37U5y'),
+        '$2b$12$WzUkssAmlTcpyYci2oBb5e.ufv.wuJpJ07pI4aGDg0hbGMjRemC8a'),
     ('Bruno', 'Pérez', '22222222', 'bruno.vet@petcore.com', '099222222',
-        '$2b$12$eXOrhUfGPsZkmiCWsD/p/eiwBgeE//BOfC0g6j4i05u6Kx5x37U5y'),
+        '$2b$12$WzUkssAmlTcpyYci2oBb5e.ufv.wuJpJ07pI4aGDg0hbGMjRemC8a'),
     ('Carla', 'Díaz', '33333333', 'carla.admin@petcore.com', '099333333',
-        '$2b$12$eXOrhUfGPsZkmiCWsD/p/eiwBgeE//BOfC0g6j4i05u6Kx5x37U5y');
+        '$2b$12$WzUkssAmlTcpyYci2oBb5e.ufv.wuJpJ07pI4aGDg0hbGMjRemC8a');
 
 -- Especialización de cada usuario según su rol.
 INSERT INTO cliente (id_usuario)

@@ -366,7 +366,7 @@ con las credenciales del cliente:
 ```json
 {
   "correo": "ana.cliente@petcore.com",
-  "contrasena": "Password123!"
+  "contrasena": "contraSegura123"
 }
 ```
 Luego con el token del cliente, ejecutar:
@@ -422,7 +422,7 @@ Esto demuestra la atomicidad de la transacción: aunque la operación haya comen
 
 ## Datos de prueba
 
-La primera vez que se crea el volumen de PostgreSQL, `db/init/` carga el esquema y los datos de prueba. La contraseña de estos usuarios es `Password123!`:
+La primera vez que se crea el volumen de PostgreSQL, `db/init/` carga el esquema y los datos de prueba. La contraseña de estos usuarios es `contraSegura123`:
 
 | Correo | Rol |
 | --- | --- |

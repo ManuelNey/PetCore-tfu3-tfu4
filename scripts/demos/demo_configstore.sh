@@ -16,7 +16,7 @@ step() {
 step "1) Login como administrador"
 ADMINTOKEN=$(curl -s -X POST "$BASE/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"correo":"carla.admin@petcore.com","contrasena":"Password123!"}' \
+  -d '{"correo":"carla.admin@petcore.com","contrasena":"contraSegura123"}' \
   | python -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))")
 echo "  token obtenido (${#ADMINTOKEN} caracteres)"
 
@@ -29,7 +29,7 @@ RAND=$RANDOM
 CORREO="demo${RAND}@petcore.com"
 curl -s -w "\nstatus: %{http_code}\n" -X POST "$BASE/auth/register" \
   -H "Content-Type: application/json" \
-  -d "{\"nombre\":\"Demo\",\"apellido\":\"Config\",\"documento\":\"$RAND\",\"correo\":\"$CORREO\",\"contrasena\":\"Password123!\",\"confirmar_contrasena\":\"Password123!\",\"telefono\":\"099123456\"}"
+  -d "{\"nombre\":\"Demo\",\"apellido\":\"Config\",\"documento\":\"$RAND\",\"correo\":\"$CORREO\",\"contrasena\":\"contraSegura123\",\"confirmar_contrasena\":\"contraSegura123\",\"telefono\":\"099123456\"}"
 echo "  correo de prueba: $CORREO"
 
 step "4) Cambio el limite a 3, sin reiniciar nada (PUT /admin/configuracion)"
@@ -48,7 +48,7 @@ done
 step "6) Intento con la contrasena CORRECTA -> deberia seguir bloqueada"
 curl -s -w "\nstatus: %{http_code}\n" -X POST "$BASE/auth/login" \
   -H "Content-Type: application/json" \
-  -d "{\"correo\":\"$CORREO\",\"contrasena\":\"Password123!\"}"
+  -d "{\"correo\":\"$CORREO\",\"contrasena\":\"contraSegura123\"}"
 
 step "7) Restauro el limite a 5"
 curl -s -w "\nstatus: %{http_code}\n" -X PUT "$BASE/admin/configuracion/LOGIN_MAX_INTENTOS" \

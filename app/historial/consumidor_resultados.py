@@ -1,9 +1,8 @@
 """
 Recibe los resultados que manda el worker y actualiza el estado de cada tarea.
 
-Corre dentro de la API, en un hilo aparte que arranca junto con ella (ver main.py).
-Si hay dos copias de la API, las dos escuchan la misma cola y cada resultado lo
-atiende solo una: ambas guardan en la misma base, así que da igual cuál sea.
+Corre en un hilo de la API (ver main.py). Si hay dos replicas, cada resultado
+lo toma una sola; las dos usan la misma base.
 
 - ExportacionGenerada -> la tarea pasa a LISTO.
 - ExportacionFallida  -> la tarea pasa a ERROR (salvo que ya esté LISTO).
@@ -28,9 +27,8 @@ logger = logging.getLogger(__name__)
 
 def aplicar_resultado(datos: dict) -> None:
     """
-    Actualiza la tarea según el evento recibido. Es seguro repetirla: si el mismo
-    resultado llega dos veces, el estado final es el mismo.
-    Lanza ValueError/KeyError/TypeError si el mensaje no es válido.
+    Actualiza la tarea. Repetir el resultado deja el mismo estado.
+    Un mensaje inválido lanza ValueError, KeyError o TypeError.
     """
     evento = datos["evento"]
     id_tarea = UUID(datos["id_tarea"])

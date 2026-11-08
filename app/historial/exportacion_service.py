@@ -15,10 +15,6 @@ class TareaNoLista(Exception):
     """La tarea existe, pero el PDF todavía no está listo"""
 
 
-class ExportacionNoEncolada(Exception):
-    """No se pudo enviar la solicitud a RabbitMQ, así que nadie va a generar el PDF."""
-
-
 def ruta_archivo(nombre_archivo: str) -> Path | None:
     """Devuelve dónde está guardado el PDF, o None si no existe."""
     ruta = Path(settings.EXPORTACIONES_DIR) / nombre_archivo
@@ -36,11 +32,8 @@ class ExportacionService:
 
     def iniciar(self, id_mascota: int, id_veterinario: int) -> UUID:
         """
-        Revisa que la mascota exista, crea la tarea como PENDIENTE y manda la solicitud
-        (evento ExportacionSolicitada) a RabbitMQ. El PDF lo genera el worker.
-
-        Si no se puede enviar la solicitud, la tarea queda en ERROR (así no queda
-        PENDIENTE para siempre) y se lanza ExportacionNoEncolada.
+        Valida la mascota, guarda la tarea y manda ExportacionSolicitada al worker.
+        Si RabbitMQ no responde, queda pendiente para el reenviador.
         """
         if not self.historial.obtener_info_mascota(id_mascota):
             raise LookupError("Mascota no encontrada.")
@@ -48,15 +41,15 @@ class ExportacionService:
         id_tarea = self.exportaciones.crear_tarea(id_mascota, id_veterinario)
 
         try:
-            # Hay una persona esperando y Nginx corta a los 5 segundos: se limita el tiempo.
+            # Limitamos la espera porque Nginx corta a los 5 segundos.
             rabbitmq.publicar(
                 eventos.RK_SOLICITADA,
                 eventos.exportacion_solicitada(str(id_tarea), id_mascota, id_veterinario),
                 tiempo_maximo=3.0,
             )
-        except rabbitmq.ErrorMensajeria as error:
-            self.exportaciones.marcar_error(id_tarea, "No se pudo enviar la solicitud de exportación.")
-            raise ExportacionNoEncolada() from error
+            self.exportaciones.marcar_evento_publicado(id_tarea)
+        except rabbitmq.ErrorMensajeria:
+            logger.warning("Tarea %s: RabbitMQ no respondió, el evento se enviará después.", id_tarea)
 
         return id_tarea
 

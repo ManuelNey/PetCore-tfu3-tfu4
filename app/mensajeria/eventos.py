@@ -6,16 +6,14 @@ Flujo:
     API  <--ExportacionGenerada----  Worker
     API  <--ExportacionFallida-----  Worker
 
-Todos los eventos llevan `id_tarea`: es la clave que permite reconocer
-solicitudes repetidas (idempotencia) y relacionar el resultado con su tarea.
+Todos los eventos llevan `id_tarea`, que identifica la exportación a la que pertenecen.
 """
 
 # --- RabbitMQ: exchange y colas ---
 
 EXCHANGE = "petcore.exportaciones"
 
-# Exchange y cola a donde van los mensajes que el worker no pudo procesar
-# (los rechaza sin reencolar). Así no se pierden ni se reintentan sin fin.
+# Mensajes rechazados sin reencolar: quedan acá para revisarlos.
 EXCHANGE_MUERTOS = "petcore.exportaciones.muertos"
 COLA_MUERTOS = "exportaciones.solicitadas.muertas"
 
@@ -41,7 +39,7 @@ def exportacion_solicitada(id_tarea: str, id_mascota: int, id_veterinario: int) 
 
 
 def exportacion_generada(id_tarea: str, archivo: str) -> dict:
-    # `archivo` es el nombre del PDF dentro de la carpeta compartida de exportaciones.
+    # Nombre del PDF en la carpeta compartida.
     return {
         "evento": "ExportacionGenerada",
         "id_tarea": id_tarea,

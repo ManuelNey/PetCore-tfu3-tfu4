@@ -2,8 +2,8 @@ $ErrorActionPreference = "Stop"
 
 Write-Host "Construyendo y levantando PostgreSQL, Redis, RabbitMQ, dos replicas de la API y el worker..."
 
-# rabbitmq y worker: sin el worker las exportaciones del historial quedan PENDIENTE para siempre.
-docker compose up --build -d --scale server=2 db redis rabbitmq server worker
+# RabbitMQ y worker también arrancan: sin worker los PDF quedan PENDIENTE.
+docker compose up --build -d --scale server=2 db redis rabbitmq historial-soap server worker
 
 if ($LASTEXITCODE -ne 0) {
     throw "No se pudieron levantar PostgreSQL, Redis, RabbitMQ, las replicas de la API y el worker."
@@ -36,4 +36,4 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host ""
 Write-Host "Contenedores utilizados por la demo:"
 
-docker compose ps db redis rabbitmq server worker balanceador
+docker compose ps db redis rabbitmq historial-soap server worker balanceador

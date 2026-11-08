@@ -1,14 +1,10 @@
 """
 Worker de exportaciones: un programa aparte de la API que arma los PDF del historial.
 
-Cada vez que llega una solicitud de exportación (ExportacionSolicitada), hace esto:
-1. Si el PDF de esa tarea ya existe (la solicitud llegó repetida), no lo arma de nuevo:
-   solo avisa otra vez que está listo.
-2. Pide el historial. Si falla por algo pasajero, lo vuelve a intentar unas veces.
-3. Arma el PDF y lo guarda en la carpeta compartida.
-4. Avisa el resultado (ExportacionGenerada si salió bien, ExportacionFallida si no)
-   y recién después da la solicitud por atendida. Si el worker se cae antes de
-   hacerlo, RabbitMQ le vuelve a mandar la solicitud.
+Recibe la solicitud -> pide el historial por SOAP -> guarda el PDF -> avisa el resultado.
+Si el PDF ya existe, solo vuelve a avisar que está listo.
+Confirma la solicitud después de publicar el resultado: si se cae antes,
+RabbitMQ vuelve a entregarla.
 
 Se ejecuta con:  python -m app.worker.main
 """
@@ -32,9 +28,7 @@ logger = logging.getLogger("worker")
 
 def procesar_solicitud(id_tarea: str, id_mascota: int, id_veterinario: int) -> tuple[str, dict]:
     """
-    Resuelve una solicitud y devuelve (routing_key, evento) con el resultado.
-    Nunca lanza errores de negocio: los convierte en ExportacionFallida para que
-    ninguna tarea quede pendiente para siempre.
+    Devuelve (routing_key, evento). Los errores de negocio van como ExportacionFallida.
     """
     nombre_archivo = f"{id_tarea}.pdf"
     destino = Path(settings.EXPORTACIONES_DIR) / nombre_archivo
@@ -44,7 +38,7 @@ def procesar_solicitud(id_tarea: str, id_mascota: int, id_veterinario: int) -> t
         logger.info("Tarea %s ya estaba generada (solicitud repetida).", id_tarea)
         return eventos.RK_GENERADA, eventos.exportacion_generada(id_tarea, nombre_archivo)
 
-    # Pausa solo para la demo (permite ver la tarea PENDIENTE o detener el worker). En un uso real es 0.
+    # Pausa de la demo para ver PENDIENTE o frenar el worker. En uso real, 0.
     time.sleep(settings.EXPORTACION_RETARDO_SEGUNDOS)
 
     historial = None
@@ -70,8 +64,7 @@ def procesar_solicitud(id_tarea: str, id_mascota: int, id_veterinario: int) -> t
         )
 
     try:
-        # Se escribe en un archivo temporal y después se renombra: así nunca queda
-        # un PDF a medio escribir con el nombre definitivo (que contaría como "ya generado").
+        # Primero va a un temporal, así un PDF incompleto no cuenta como terminado.
         temporal = destino.with_suffix(".pdf.tmp")
         generar_pdf_historial(historial, temporal)
         os.replace(temporal, destino)
@@ -101,8 +94,7 @@ def al_recibir(canal, metodo, _propiedades, cuerpo: bytes) -> None:
     try:
         rabbitmq.publicar(routing_key, resultado)
     except rabbitmq.ErrorMensajeria:
-        # No se pudo avisar el resultado: la solicitud vuelve a la cola para reintentar.
-        # Como el PDF ya existe, repetirla es barato.
+        # No se pudo avisar: vuelve a la cola. Si el PDF ya existe, no se genera otra vez.
         logger.error("Tarea %s: no se pudo publicar el resultado, se reencola.", id_tarea)
         time.sleep(2)
         canal.basic_nack(metodo.delivery_tag, requeue=True)

@@ -14,10 +14,12 @@ class HistorialService:
         self, id_mascota: int, id_cliente: int, limite: int, offset: int
     ) -> dict:
         if not self.repository.mascota_pertenece_a_cliente(id_mascota, id_cliente):
-            self.repository.registrar_acceso(
-                id_cliente, id_mascota, "CLIENTE", "RECHAZADO",
-                "La mascota no pertenece al cliente autenticado.",
-            )
+            # Si la mascota no existe, no se audita: fallaría la referencia en la base.
+            if self.repository.obtener_info_mascota(id_mascota):
+                self.repository.registrar_acceso(
+                    id_cliente, id_mascota, "CLIENTE", "RECHAZADO",
+                    "La mascota no pertenece al cliente autenticado.",
+                )
             raise LookupError("Mascota no encontrada.")
 
         total = self.repository.contar_consultas_cliente(id_mascota)
@@ -34,10 +36,7 @@ class HistorialService:
     ) -> dict:
         info_mascota = self.repository.obtener_info_mascota(id_mascota)
         if not info_mascota:
-            self.repository.registrar_acceso(
-                id_veterinario, id_mascota, "VETERINARIO", "RECHAZADO",
-                "Mascota no encontrada.",
-            )
+            # Sin mascota no se audita, por la referencia en la base.
             raise LookupError("Mascota no encontrada.")
 
         ids_esperados = self.repository.ids_esperados(id_mascota, tipo)

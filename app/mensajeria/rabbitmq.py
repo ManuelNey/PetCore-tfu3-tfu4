@@ -1,13 +1,5 @@
 """
-Acceso a RabbitMQ para publicar y consumir eventos.
-
-Garantías que se buscan (por qué se hace así):
-- Colas y exchanges DURABLES: sobreviven a un reinicio de RabbitMQ.
-- Mensajes PERSISTENTES (delivery_mode=2): se escriben a disco.
-- Confirmación de publicación (publisher confirms) + mandatory: si RabbitMQ no
-  confirma o el mensaje no llega a ninguna cola, `publicar` lo sabe y falla en
-  vez de perder el evento en silencio.
-- RETRY con espera creciente al conectar/publicar: la red no es confiable.
+Conexión con RabbitMQ: crea las colas, publica eventos y abre canales para recibirlos.
 """
 
 import json
@@ -33,7 +25,7 @@ def _parametros() -> pika.ConnectionParameters:
         port=settings.RABBITMQ_PORT,
         credentials=pika.PlainCredentials(settings.RABBITMQ_USER, settings.RABBITMQ_PASSWORD),
         heartbeat=60,
-        # Si RabbitMQ no responde, cada intento se rinde rápido (no esperar decenas de segundos).
+        # Si RabbitMQ no responde, cortamos rapido este intento.
         connection_attempts=1,
         socket_timeout=2,
         stack_timeout=2,
@@ -43,8 +35,7 @@ def _parametros() -> pika.ConnectionParameters:
 
 def declarar_topologia(canal) -> None:
     """
-    Crea exchanges y colas si no existen. Es idempotente: se puede llamar
-    desde la API y desde el worker sin importar quién arranque primero.
+    Crea las colas y exchanges que falten. API y worker pueden llamarlo al arrancar.
     """
     canal.exchange_declare(eventos.EXCHANGE, exchange_type="direct", durable=True)
     canal.exchange_declare(eventos.EXCHANGE_MUERTOS, exchange_type="direct", durable=True)
@@ -74,9 +65,7 @@ def declarar_topologia(canal) -> None:
 
 def abrir_canal():
     """
-    Abre conexión y canal con la topología lista. Lo usan los consumidores
-    (worker y API). Quien lo llama debe cerrar la conexión.
-    Devuelve (conexion, canal).
+    Devuelve (conexion, canal), con las colas listas. Quien llama cierra la conexión.
     """
     conexion = pika.BlockingConnection(_parametros())
     canal = conexion.channel()
@@ -86,12 +75,10 @@ def abrir_canal():
 
 def publicar(routing_key: str, evento: dict, tiempo_maximo: float | None = None) -> None:
     """
-    Publica un evento con mensaje persistente y confirmación de RabbitMQ.
-    Reintenta si falla la conexión o no hay confirmación (espera 0.5s, 1s, etc),
-    hasta RABBITMQ_INTENTOS veces.
-    `tiempo_maximo` (segundos) limita el tiempo total: si ya se gastó, no empieza otro
-    intento. Sirve cuando hay una persona esperando la respuesta (la API).
-    Si no logra publicar lanza ErrorMensajeria.
+    Publica un mensaje persistente y espera la confirmación de RabbitMQ.
+    Si falla, reintenta hasta RABBITMQ_INTENTOS, con esperas de 0.5s, 1s, ...
+    tiempo_maximo evita empezar otro intento si no queda tiempo para la espera.
+    Si no pudo enviarlo, lanza ErrorMensajeria.
     """
     cuerpo = json.dumps(evento, ensure_ascii=False).encode("utf-8")
     ultimo_error: Exception | None = None

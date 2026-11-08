@@ -8,7 +8,15 @@ COPY pyproject.toml uv.lock ./
 
 RUN uv sync --locked
 
-COPY SOAP/ ./app/
+# Tomamos de app/ el código que comparte con la API.
+COPY app/config.py app/database.py ./app/
+COPY app/Middleware/ ./app/Middleware/
+COPY app/historial/repository.py app/historial/dto.py ./app/historial/
+
+# Archivos propios del SOAP.
+COPY SOAP/main.py ./app/main.py
+COPY SOAP/distribuido/ ./app/distribuido/
+COPY SOAP/historial/service.py ./app/historial/service.py
 
 EXPOSE 8001
 

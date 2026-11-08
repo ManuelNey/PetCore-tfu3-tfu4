@@ -37,16 +37,25 @@ class Settings(BaseSettings):
     RABBITMQ_USER: str = "petcore"
     RABBITMQ_PASSWORD: str = "petcore"
 
-    # Cuántas veces se intenta conectar/publicar antes de rendirse (Retry).
+    # Intentos para conectar o publicar (Retry).
     RABBITMQ_INTENTOS: int = Field(
         default=3,
         ge=1,
         le=10,
     )
 
-    # Worker de exportaciones: cuántas veces pide el historial (si falla por algo
-    # pasajero) antes de dar la tarea por fallida, y cuánto espera entre intentos
-    # (se duplica en cada intento: 1s, 2s, ...).
+    # Outbox: cada cuánto revisar y cuánto esperar antes de reenviar una tarea.
+    # Esa espera evita cruzarse con el pedido que la acaba de crear.
+    OUTBOX_INTERVALO_SEGUNDOS: float = Field(
+        default=5.0,
+        gt=0,
+    )
+    OUTBOX_ANTIGUEDAD_SEGUNDOS: int = Field(
+        default=10,
+        ge=0,
+    )
+
+    # Reintentos del worker al pedir el historial. La espera se duplica: 1s, 2s, ...
     WORKER_INTENTOS_HISTORIAL: int = Field(
         default=3,
         ge=1,
@@ -57,12 +66,12 @@ class Settings(BaseSettings):
         ge=0,
     )
 
-    # PROVISORIO: dirección del servicio SOAP del historial (contenedor aparte).
-    # Hoy no se usa: cliente_historial.obtener_historial() todavía consulta la base
-    # directo. Quien hace el servicio SOAP define el valor real (por ejemplo
-    # "http://historial-soap:8001/?wsdl"), lo usa en cliente_historial.py y lo agrega
-    # al servicio "worker" de compose.yaml.
-    SOAP_HISTORIAL_URL: str | None = None
+    # URL del SOAP y tiempo maximo de espera, en segundos.
+    SOAP_HISTORIAL_URL: str = "http://historial-soap:8001/soap/historial"
+    SOAP_TIMEOUT_SEGUNDOS: float = Field(
+        default=4.0,
+        gt=0,
+    )
 
     # JWT
     JWT_SECRET_KEY: str = Field(
@@ -94,8 +103,7 @@ class Settings(BaseSettings):
     # Carpeta donde se guardan los PDF.
     EXPORTACIONES_DIR: str = "/app/exportaciones"
 
-    # Pausa antes de generar el PDF, solo para la demo (así se alcanza a ver el
-    # estado PENDIENTE). En un uso real debe ser 0.
+    # Pausa para ver PENDIENTE en la demo. Fuera de la demo, usar 0.
     EXPORTACION_RETARDO_SEGUNDOS: float = 0
 
     # Cuántos segundos dura el enlace de descarga (Valet Key). 600 = 10 minutos.

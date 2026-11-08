@@ -15,3 +15,5 @@ __pycache__/
 
 db/password.txt
 db/jwt-secret.txt
+
+privado/

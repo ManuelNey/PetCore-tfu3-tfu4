@@ -240,13 +240,15 @@ async def consultar_historial(
             nombre_respuesta = "cliente"
 
         else:
-            repository.registrar_acceso(
-                usuario["id_usuario"],
-                consulta.id_mascota,
-                usuario["rol"],
-                "RECHAZADO",
-                "Rol sin acceso al historial clínico.",
-            )
+            # Si la mascota no existe, no se audita: fallaría la referencia en la base.
+            if repository.obtener_info_mascota(consulta.id_mascota):
+                repository.registrar_acceso(
+                    usuario["id_usuario"],
+                    consulta.id_mascota,
+                    usuario["rol"],
+                    "RECHAZADO",
+                    "Rol sin acceso al historial clínico.",
+                )
 
             raise HTTPException(
                 status_code=403,

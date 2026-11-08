@@ -27,12 +27,20 @@ from app.agenda.controller import router as agenda_router
 from app.historial.controller import router as historial_router
 from app.pacientes.controller import router as pacientes_router
 from app.demo.controller import router as demo_router
+from app.historial.consumidor_resultados import iniciar_consumidor
+from app.historial.reenviador_eventos import iniciar_reenviador
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     # Marca turnos vencidos como NO_ASISTIO en segundo plano mientras la API esté activa.
     tarea = asyncio.create_task(ejecutar_tarea_periodica())
+
+    # Recibe por RabbitMQ los resultados del worker.
+    iniciar_consumidor()
+
+    # Reenvía los pedidos que quedaron sin publicar.
+    iniciar_reenviador()
 
     yield
 

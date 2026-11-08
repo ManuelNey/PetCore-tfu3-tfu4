@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -13,21 +13,17 @@ from app.historial.dto import (
     HistorialVeterinarioResponse,
 )
 from app.historial.exportacion_repository import ExportacionRepository
-from app.historial.exportacion_service import (
-    ExportacionService,
-    TareaNoLista,
-    generar_en_segundo_plano,
+from app.historial.cliente_historial import (
+    HistorialNoDisponible,
+    HistorialRechazado,
+    consultar_historial,
 )
+from app.historial.exportacion_service import ExportacionService, TareaNoLista
 from app.historial.repository import HistorialRepository
-from app.historial.service import HistorialService
 from app.historial.valet_key import ValetKeyInvalida, ValetKeyNoCorresponde
 from app.Middleware.middleware import obtener_usuario_actual, requerir_rol
 
 router = APIRouter(tags=["Historial"])
-
-
-def crear_service(session: Session) -> HistorialService:
-    return HistorialService(HistorialRepository(session))
 
 
 def crear_exportacion_service(session: Session) -> ExportacionService:
@@ -40,34 +36,24 @@ def crear_exportacion_service(session: Session) -> ExportacionService:
 )
 def ver_historial(
     id_mascota: int,
+    request: Request,
     limite: int = 10,
     offset: int = 0,
     tipo: str | None = None,
     usuario: dict[str, Any] = Depends(obtener_usuario_actual),
-    session: Session = Depends(get_session),
 ):
-    service = crear_service(session)
+    """Pide el historial por SOAP con el token del usuario."""
+    token = request.headers["Authorization"].split()[1]
 
     try:
-        if usuario["rol"] == "VETERINARIO":
-            return service.obtener_historial_veterinario(id_mascota, usuario["id_usuario"], tipo)
-
-        if usuario["rol"] == "CLIENTE":
-            return service.obtener_historial_cliente(
-                id_mascota, usuario["id_usuario"], limite, offset
-            )
-
-        # ADMINISTRADOR u otro rol: sin acceso al contenido clínico.
-        HistorialRepository(session).registrar_acceso(
-            usuario["id_usuario"], id_mascota, usuario["rol"], "RECHAZADO",
-            "Rol sin acceso al historial clinico.",
-        )
+        return consultar_historial(token, id_mascota, limite, offset, tipo)
+    except HistorialRechazado as error:
+        raise HTTPException(status_code=error.estado, detail=str(error)) from error
+    except HistorialNoDisponible as error:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Rol sin acceso a este recurso.",
-        )
-    except LookupError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="El servicio de historial no está disponible.",
+        ) from error
 
 # --- Exportación del historial a PDF (Asynchronous Request-Reply) ---
 
@@ -78,20 +64,16 @@ def ver_historial(
 )
 def iniciar_exportacion(
     id_mascota: int,
-    segundo_plano: BackgroundTasks,
     usuario: dict[str, Any] = Depends(requerir_rol("VETERINARIO")),
     session: Session = Depends(get_session),
 ):
-    """Crea la tarea y responde enseguida (202). El PDF se prepara después."""
+    """Manda el pedido al worker y responde 202. El PDF se prepara después."""
     service = crear_exportacion_service(session)
 
     try:
         id_tarea = service.iniciar(id_mascota, usuario["id_usuario"])
     except LookupError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
-
-    # Se ejecuta después de responder
-    segundo_plano.add_task(generar_en_segundo_plano, id_tarea, id_mascota, usuario["id_usuario"])
 
     return {"id_tarea": id_tarea, "estado": "PENDIENTE"}
 

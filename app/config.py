@@ -31,6 +31,48 @@ class Settings(BaseSettings):
         ge=1,
     )
 
+    # RabbitMQ (eventos de la exportación del historial)
+    RABBITMQ_HOST: str = "localhost"
+    RABBITMQ_PORT: int = 5672
+    RABBITMQ_USER: str = "petcore"
+    RABBITMQ_PASSWORD: str = "petcore"
+
+    # Intentos para conectar o publicar (Retry).
+    RABBITMQ_INTENTOS: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+    )
+
+    # Outbox: cada cuánto revisar y cuánto esperar antes de reenviar una tarea.
+    # Esa espera evita cruzarse con el pedido que la acaba de crear.
+    OUTBOX_INTERVALO_SEGUNDOS: float = Field(
+        default=5.0,
+        gt=0,
+    )
+    OUTBOX_ANTIGUEDAD_SEGUNDOS: int = Field(
+        default=10,
+        ge=0,
+    )
+
+    # Reintentos del worker al pedir el historial. La espera se duplica: 1s, 2s, ...
+    WORKER_INTENTOS_HISTORIAL: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+    )
+    WORKER_ESPERA_BASE_SEGUNDOS: float = Field(
+        default=1.0,
+        ge=0,
+    )
+
+    # URL del SOAP y tiempo maximo de espera, en segundos.
+    SOAP_HISTORIAL_URL: str = "http://historial-soap:8001/soap/historial"
+    SOAP_TIMEOUT_SEGUNDOS: float = Field(
+        default=4.0,
+        gt=0,
+    )
+
     # JWT
     JWT_SECRET_KEY: str = Field(
         min_length=32,
@@ -61,8 +103,7 @@ class Settings(BaseSettings):
     # Carpeta donde se guardan los PDF.
     EXPORTACIONES_DIR: str = "/app/exportaciones"
 
-    # Pausa antes de generar el PDF, solo para la demo (así se alcanza a ver el
-    # estado PENDIENTE). En un uso real debe ser 0.
+    # Pausa para ver PENDIENTE en la demo. Fuera de la demo, usar 0.
     EXPORTACION_RETARDO_SEGUNDOS: float = 0
 
     # Cuántos segundos dura el enlace de descarga (Valet Key). 600 = 10 minutos.

@@ -212,6 +212,44 @@ services:
       timeout: 5s
       retries: 5
 
+  historial-soap:
+    build:
+      context: .
+      dockerfile: SOAP/Dockerfile
+
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_SERVER: db
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: petcore_app
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/db-password
+
+      JWT_SECRET_KEY_FILE: /run/secrets/jwt-secret
+
+    secrets:
+      - db-password
+      - jwt-secret
+
+    ports:
+      - "127.0.0.1:8001:8001"
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
 # Crea un volumen para guardar los datos de PostgreSQL
 # Los datos permanecen aunque se elimine el contenedor, mientras no se elimine el volumen
 volumes:
